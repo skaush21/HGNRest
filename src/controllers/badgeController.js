@@ -5,6 +5,7 @@ const { hasPermission } = require('../utilities/permissions');
 const escapeRegex = require('../utilities/escapeRegex');
 const cache = require('../utilities/nodeCache')();
 const logger = require('../startup/logger');
+const userHelper = require('../helpers/userHelper')();
 
 const badgeController = function (Badge) {
   /**
@@ -12,6 +13,12 @@ const badgeController = function (Badge) {
    * @param {Object} req - Request object.
    * @returns {Array<Object>} List containing badge records.
    */
+  // call award new badges function
+  const awardBadgesTest = async function (req, res) {
+    await userhelper.awardNewBadges();
+    res.status(200).send('awardBadgesTest');
+  };
+
   const getAllBadges = async function (req, res) {
     if (!(await hasPermission(req.body.requestor, 'seeBadges'))) {
       res.status(403).send('You are not authorized to view all badge data.');
@@ -263,6 +270,7 @@ const badgeController = function (Badge) {
   };
 
   return {
+    awardBadgesTest,
     getAllBadges,
     assignBadges,
     postBadge,

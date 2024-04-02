@@ -1254,6 +1254,7 @@ const userHelper = function () {
         await removeDupBadge(personId, b._id);
       }
     }
+    //const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
     await badge.findOne({ type: "Personal Max" }).then((results) => {
       if (
         user.lastWeekTangibleHrs
@@ -1628,23 +1629,84 @@ const userHelper = function () {
     });
   };
 
+  const TangibleMaxHrsForAllWeeks = async (personId) => {
+    const userId = mongoose.Types.ObjectId(personId);
+    let weeksToCheck = [];
+    let weeksTangibleHours = [];
+    // get the weeks
+    for (let i = 1; i < moment().week(); i++) {
+      weeksToCheck.push(i);
+    }
+    // iterate through weeks to get hours of each week
+    for (const week of weeksToCheck) {
+      const pdtstart = moment().tz('America/Los_Angeles').week(week).startOf('week').format('YYYY-MM-DD');
+      const pdtend = moment().tz('America/Los_Angeles').week(week).endOf('week').format('YYYY-MM-DD');
+  
+      try {
+        const timeEntriesThisWeek = await timeEntries
+          .find(
+            {
+              personId: userId,
+              dateOfWork: { $gte: pdtstart, $lte: pdtend },
+              isTangible: true,
+            },
+            'totalSeconds',
+          )
+          .exec();
+        
+        //const totalTangibleWeeklySeconds = timeEntriesThisWeek.reduce(
+        //  (acc, { totalSeconds }) => acc + totalSeconds,
+        //  0,
+        //);
+        const totalTangibleWeeklySeconds = (timeEntriesThisWeek || []).reduce(
+          (acc, entry) => (entry && entry.totalSeconds !== undefined ? acc + entry.totalSeconds : acc),
+          0,
+        );
+       weeksTangibleHours.push((totalTangibleWeeklySeconds / 3600).toFixed(2));
+      } catch (error) {
+        console.error(error);
+      }
+  
+    }
+    // get max hours of all weeks
+    let maxHours = weeksTangibleHours[0];
+    let maxWeek = 0;
+    for (let i = 1; i < weeksTangibleHours.length; i++) {
+        if (weeksTangibleHours[i] > maxHours) {
+            maxHours = weeksTangibleHours[i];
+            maxWeek = i + 1;
+        }
+    }
+    console.log(`Week with maximum hours is: ${maxWeek} with ${maxHours} hours.`);
+    //const max = Math.max(...weeksTangibleHours.map(hour => parseFloat(hour)));
+    //const maxHours = Math.max(...weeksTangibleHours.filter(hours => hours !== undefined).map(hour => parseFloat(hour)));
+
+    console.log('Hours: ', weeksTangibleHours);
+    return maxHours;
+  };
+
   const awardNewBadges = async () => {
+    console.log("awarding");
     try {
       const users = await userProfile
-        .find({ isActive: true })
-        .populate("badgeCollection.badge");
+      .find({ email: 'skaush25@gmail.com' })
+      .populate("badgeCollection.badge");
+      //const users = await userProfile
+      //  .find({ isActive: true })
+      //  .populate("badgeCollection.badge");
       for (let i = 0; i < users.length; i += 1) {
         const user = users[i];
         const { _id, badgeCollection } = user;
         const personId = mongoose.Types.ObjectId(_id);
 
-        await checkPersonalMax(personId, user, badgeCollection);
-        await checkMostHrsWeek(personId, user, badgeCollection);
-        await checkMinHoursMultiple(personId, user, badgeCollection);
-        await checkTotalHrsInCat(personId, user, badgeCollection);
-        await checkLeadTeamOfXplus(personId, user, badgeCollection);
-        await checkXHrsForXWeeks(personId, user, badgeCollection);
-        await checkNoInfringementStreak(personId, user, badgeCollection);
+        await TangibleMaxHrsForAllWeeks(personId);
+        //await checkPersonalMax(personId, user, badgeCollection);
+        //await checkMostHrsWeek(personId, user, badgeCollection);
+        //await checkMinHoursMultiple(personId, user, badgeCollection);
+        //await checkTotalHrsInCat(personId, user, badgeCollection);
+        //await checkLeadTeamOfXplus(personId, user, badgeCollection);
+        //await checkXHrsForXWeeks(personId, user, badgeCollection);
+        //await checkNoInfringementStreak(personId, user, badgeCollection);
         // remove cache after badge asssignment.
         if (cache.hasCache(`user-${_id}`)) {
           cache.removeCache(`user-${_id}`);
