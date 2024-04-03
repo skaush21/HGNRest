@@ -405,7 +405,7 @@ const userHelper = function () {
         let description;
 
         const timeRemaining = weeklycommittedHours - timeSpent;
-
+        // optionally could remove personalbestmaxhrs since it is being updated in checkpersonalmax,
         const updateResult = await userProfile.findByIdAndUpdate(
           personId,
           {
@@ -1255,6 +1255,7 @@ const userHelper = function () {
       }
     }
     //const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
+    console.log('max hours', user.personalBestMaxHrs);
     await badge.findOne({ type: "Personal Max" }).then((results) => {
       if (
         user.lastWeekTangibleHrs
@@ -1265,13 +1266,13 @@ const userHelper = function () {
           changeBadgeCount(
             personId,
             mongoose.Types.ObjectId(badgeOfType._id),
-            user.personalBestMaxHrs,
+            user.lastWeekTangibleHrs,
           );
         } else {
           addBadge(
             personId,
             mongoose.Types.ObjectId(results._id),
-            user.personalBestMaxHrs,
+            user.lastWeekTangibleHrs,
           );
         }
       }
@@ -1681,15 +1682,22 @@ const userHelper = function () {
     //const max = Math.max(...weeksTangibleHours.map(hour => parseFloat(hour)));
     //const maxHours = Math.max(...weeksTangibleHours.filter(hours => hours !== undefined).map(hour => parseFloat(hour)));
 
-    console.log('Hours: ', weeksTangibleHours);
+    //console.log('Hours: ', weeksTangibleHours);
+  
     return maxHours;
   };
 
+  const UpdatePersonalMax = async (personId, user) => {
+    const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
+    user.personalBestMaxHrs = MaxHrs;
+    console.log('updated max hours: ', user.personalBestMaxHrs);
+    await user.save();
+  }
+
   const awardNewBadges = async () => {
-    console.log("awarding");
     try {
       const users = await userProfile
-      .find({ email: 'skaush25@gmail.com' })
+      .find({ email: 'skaush21@gmail.com' })
       .populate("badgeCollection.badge");
       //const users = await userProfile
       //  .find({ isActive: true })
@@ -1700,7 +1708,9 @@ const userHelper = function () {
         const personId = mongoose.Types.ObjectId(_id);
 
         await TangibleMaxHrsForAllWeeks(personId);
-        //await checkPersonalMax(personId, user, badgeCollection);
+        await UpdatePersonalMax(personId, user);
+
+        await checkPersonalMax(personId, user, badgeCollection);
         //await checkMostHrsWeek(personId, user, badgeCollection);
         //await checkMinHoursMultiple(personId, user, badgeCollection);
         //await checkTotalHrsInCat(personId, user, badgeCollection);
