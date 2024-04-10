@@ -1255,7 +1255,7 @@ const userHelper = function () {
       }
     }
     //const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
-    console.log('max hours', user.personalBestMaxHrs);
+    //console.log('max hours', user.personalBestMaxHrs);
     await badge.findOne({ type: "Personal Max" }).then((results) => {
       if (
         user.lastWeekTangibleHrs
@@ -1632,57 +1632,43 @@ const userHelper = function () {
 
   const TangibleMaxHrsForAllWeeks = async (personId) => {
     const userId = mongoose.Types.ObjectId(personId);
-    let weeksToCheck = [];
     let weeksTangibleHours = [];
-    // get the weeks
-    for (let i = 1; i < moment().week(); i++) {
-      weeksToCheck.push(i);
-    }
+    const currentDate = moment().tz('America/Los_Angeles');
+    const startOfYear = moment().startOf('year');
+    const numWeeks = Math.ceil((currentDate.diff(startOfYear, 'days') / 7));
+  
     // iterate through weeks to get hours of each week
-    for (const week of weeksToCheck) {
-      const pdtstart = moment().tz('America/Los_Angeles').week(week).startOf('week').format('YYYY-MM-DD');
-      const pdtend = moment().tz('America/Los_Angeles').week(week).endOf('week').format('YYYY-MM-DD');
+    for (let week = 1; week <= numWeeks; week++) {
+      const pdtstart = startOfYear.clone().add(week - 1, 'weeks').startOf('week').format('YYYY-MM-DD');
+      const pdtend = startOfYear.clone().add(week, 'weeks').subtract(1, 'days').format('YYYY-MM-DD');
   
       try {
-        const timeEntriesThisWeek = await timeEntries
-          .find(
-            {
-              personId: userId,
-              dateOfWork: { $gte: pdtstart, $lte: pdtend },
-              isTangible: true,
-            },
-            'totalSeconds',
-          )
-          .exec();
-        
-        //const totalTangibleWeeklySeconds = timeEntriesThisWeek.reduce(
-        //  (acc, { totalSeconds }) => acc + totalSeconds,
-        //  0,
-        //);
-        const totalTangibleWeeklySeconds = (timeEntriesThisWeek || []).reduce(
-          (acc, entry) => (entry && entry.totalSeconds !== undefined ? acc + entry.totalSeconds : acc),
-          0,
+        const results = await dashboardHelper.laborthisweek(
+          personId,
+          pdtstart,
+          pdtend,
         );
-       weeksTangibleHours.push((totalTangibleWeeklySeconds / 3600).toFixed(2));
+  
+        const { timeSpent_hrs: timeSpent } = results[0];
+  
+        weeksTangibleHours.push(timeSpent);
       } catch (error) {
         console.error(error);
       }
-  
     }
+  
     // get max hours of all weeks
     let maxHours = weeksTangibleHours[0];
     let maxWeek = 0;
     for (let i = 1; i < weeksTangibleHours.length; i++) {
-        if (weeksTangibleHours[i] > maxHours) {
-            maxHours = weeksTangibleHours[i];
-            maxWeek = i + 1;
-        }
+      if (weeksTangibleHours[i] > maxHours) {
+        maxHours = weeksTangibleHours[i];
+        maxWeek = i + 1;
+      }
     }
+  
     console.log(`Week with maximum hours is: ${maxWeek} with ${maxHours} hours.`);
-    //const max = Math.max(...weeksTangibleHours.map(hour => parseFloat(hour)));
-    //const maxHours = Math.max(...weeksTangibleHours.filter(hours => hours !== undefined).map(hour => parseFloat(hour)));
-
-    //console.log('Hours: ', weeksTangibleHours);
+    console.log('Hours: ', weeksTangibleHours);
   
     return maxHours;
   };
@@ -1690,7 +1676,12 @@ const userHelper = function () {
   const UpdatePersonalMax = async (personId, user) => {
     const MaxHrs = await TangibleMaxHrsForAllWeeks(personId);
     user.personalBestMaxHrs = MaxHrs;
-    console.log('updated max hours: ', user.personalBestMaxHrs);
+    // additional check in case data has been changed in db
+    // if (user.lastWeekTangibleHrs > user.personalBestMaxHrs) {
+    //  user.personalBestMaxHrs = MaxHrs;
+    // }
+    console.log('user.totaltangiblehrs: ', user.totalTangibleHrs);
+    console.log('updated personalbestmaxhrs: ', user.personalBestMaxHrs);
     await user.save();
   }
 
